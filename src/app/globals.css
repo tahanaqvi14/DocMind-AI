@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+:root {
+  /* ── DocMind AI design tokens ──────────────────────────────
+     Theme: "Annotated Archive" — a deep-ink workspace holding
+     paper-toned document surfaces, marked up with a highlighter
+     amber that literally represents citations/grounding. */
+  --ink: #12132a;
+  --ink-soft: #1b1d3d;
+  --ink-line: #2b2e57;
+  --paper: #efeae0;
+  --paper-dim: #e2ddd0;
+  --ink-text: #f5f3ec;
+  --ink-muted: #9195b8;
+  --paper-text: #201f1a;
+  --highlight: #ffc857;
+  --highlight-soft: #ffe6a8;
+  --teal: #2fbfa3;
+  --danger: #e8604c;
+
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-line: var(--ink-line);
+  --color-paper: var(--paper);
+  --color-paper-dim: var(--paper-dim);
+  --color-ink-text: var(--ink-text);
+  --color-ink-muted: var(--ink-muted);
+  --color-paper-text: var(--paper-text);
+  --color-highlight: var(--highlight);
+  --color-highlight-soft: var(--highlight-soft);
+  --color-teal: var(--teal);
+  --color-danger: var(--danger);
+  --font-family-display: var(--font-display);
+  --font-family-body: var(--font-body);
+  --font-family-mono: var(--font-mono);
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--ink);
+  color: var(--ink-text);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+}
+
+.highlight-mark {
+  background: linear-gradient(120deg, var(--highlight-soft) 0%, var(--highlight) 100%);
+  color: var(--paper-text);
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
+
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
