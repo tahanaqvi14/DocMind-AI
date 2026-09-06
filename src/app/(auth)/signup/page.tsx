@@ -63,12 +63,12 @@ export default function SignupPage() {
       title="Create your account"
       subtitle="3 documents free — no credit card needed."
     >
-      <button
+      {/* <button
         onClick={handleGoogleSignup}
         className="w-full rounded-lg border border-ink-line bg-ink-soft py-3 text-sm font-medium transition-colors hover:border-teal"
       >
         Continue with Google
-      </button>
+      </button> */}
 
       <div className="my-6 flex items-center gap-3 text-xs text-ink-muted">
         <div className="h-px flex-1 bg-ink-line" />
