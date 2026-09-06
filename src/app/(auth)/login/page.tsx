@@ -40,12 +40,12 @@ export default function LoginPage() {
 
   return (
     <AuthCard title="Welcome back" subtitle="Log in to keep chatting with your documents.">
-      <button
+      {/* <button
         onClick={handleGoogleLogin}
         className="w-full rounded-lg border border-ink-line bg-ink-soft py-3 text-sm font-medium transition-colors hover:border-teal"
       >
         Continue with Google
-      </button>
+      </button> */}
 
       <div className="my-6 flex items-center gap-3 text-xs text-ink-muted">
         <div className="h-px flex-1 bg-ink-line" />
