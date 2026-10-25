@@ -52,7 +52,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
 
-  const fileType = ALLOWED_TYPES[file.type];
+  // Browsers on machines without Office (common on Windows) send .docx
+  // files with an empty MIME type, which the dropzone accepts by extension —
+  // so fall back to the extension here too instead of rejecting them.
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const fileType =
+    ALLOWED_TYPES[file.type] ??
+    (Object.values(ALLOWED_TYPES).includes(extension) ? extension : undefined);
   if (!fileType) {
     return NextResponse.json(
       { error: "Unsupported file type. Please upload a PDF, DOCX, or TXT file." },

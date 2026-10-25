@@ -38,9 +38,22 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // Get or create the chat thread
+  // Get or create the chat thread. The admin client bypasses RLS, so a
+  // client-supplied chatId must be checked against the caller explicitly —
+  // otherwise anyone could read (as model context) and write into another
+  // user's chat just by sending its id.
   let activeChatId = chatId as string | undefined;
-  if (!activeChatId) {
+  if (activeChatId) {
+    const { data: ownChat } = await admin
+      .from("chats")
+      .select("id")
+      .eq("id", activeChatId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    if (!ownChat) {
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    }
+  } else {
     const { data: newChat, error } = await admin
       .from("chats")
       .insert({ owner_id: user.id, title: message.slice(0, 60) })
@@ -52,12 +65,15 @@ export async function POST(request: Request) {
     activeChatId = newChat.id;
   }
 
-  // Prior turns for conversational context
+  // Prior turns for conversational context: the 10 MOST RECENT (newest
+  // first here, flipped back to chronological order below). Ascending +
+  // limit would keep replaying the first 10 messages of a long chat.
   const { data: priorMessages } = await admin
     .from("messages")
     .select("role, content")
     .eq("chat_id", activeChatId)
-    .order("created_at", { ascending: true })
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false })
     .limit(10);
 
   await admin.from("messages").insert({
@@ -67,8 +83,19 @@ export async function POST(request: Request) {
     content: message,
   });
 
-  // Embed the question and retrieve grounded context
-  const queryEmbedding = await embedText(message);
+  // Embed the question and retrieve grounded context. A Gemini failure
+  // (rate limit, bad key) must come back as JSON the chat UI can show,
+  // not as an unhandled exception.
+  let queryEmbedding: number[];
+  try {
+    queryEmbedding = await embedText(message);
+  } catch (err) {
+    console.error("Embedding failed:", err);
+    return NextResponse.json(
+      { error: "Couldn't process your question right now. Please try again in a moment." },
+      { status: 502 }
+    );
+  }
   const { data: matches, error: matchError } = await admin.rpc("match_document_chunks", {
     query_embedding: queryEmbedding,
     match_owner_id: user.id,
@@ -112,10 +139,12 @@ export async function POST(request: Request) {
     similarity: r.similarity,
   }));
 
-  const history = ((priorMessages ?? []) as { role: string; content: string }[]).map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
+  const history = ((priorMessages ?? []) as { role: string; content: string }[])
+    .reverse()
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 
   const encoder = new TextEncoder();
   let fullAnswer = "";
@@ -132,6 +161,7 @@ export async function POST(request: Request) {
           controller.enqueue(encoder.encode(token));
         }
       } catch (err) {
+        console.error("Groq streaming failed:", err);
         const msg = "\n\n[Error: the model failed to respond. Please try again.]";
         fullAnswer += msg;
         controller.enqueue(encoder.encode(msg));

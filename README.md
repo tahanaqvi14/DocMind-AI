@@ -31,8 +31,8 @@ real (test-mode) billing flow with plan limits.
 | Auth + DB | Supabase (Postgres + Auth) | Email/password + Google OAuth, Row Level Security for multi-tenancy, free tier |
 | Vector search | Supabase **pgvector** | No separate vector database to run or pay for — cosine similarity search lives in Postgres |
 | Chunking | LangChain.js (`RecursiveCharacterTextSplitter`) | Battle-tested chunk/overlap strategy |
-| Embeddings | Google Gemini (`text-embedding-004`) | Free tier, 768-dim vectors |
-| Chat LLM | Groq (Llama 3.3 70B) | Extremely fast streaming inference, free tier |
+| Embeddings | Google Gemini (`gemini-embedding-001`, pinned to 768 dims) | Free tier, 768-dim vectors |
+| Chat LLM | Groq (`openai/gpt-oss-120b` by default, set via `GROQ_MODEL`) | Extremely fast streaming inference, free tier |
 | Billing | Stripe (**test mode**) | Real checkout flow, no real charges |
 | Hosting | Vercel | Zero-config Next.js deploys, free tier |
 
@@ -115,6 +115,7 @@ src/
 └── proxy.ts                      # Auth session refresh + route protection
 
 supabase/migrations/0001_init.sql # Full schema: tables, RLS, RPC, triggers
+supabase/migrations/0002_security_and_retrieval_fixes.sql # Locks down profiles, exact per-user search
 ```
 
 ## Setup
@@ -130,7 +131,7 @@ npm install
 ### 2. Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) → New project (free tier).
-2. In **SQL Editor**, paste and run the contents of `supabase/migrations/0001_init.sql`. This creates all tables, enables pgvector, sets up Row Level Security, and creates the similarity-search function.
+2. In **SQL Editor**, paste and run `supabase/migrations/0001_init.sql`, then `supabase/migrations/0002_security_and_retrieval_fixes.sql`, in that order. This creates all tables, enables pgvector, sets up Row Level Security, and creates the similarity-search function.
 3. In **Authentication → Providers**, enable **Google** OAuth (optional but recommended) — you'll need a Google Cloud OAuth client ID/secret.
 4. In **Authentication → URL Configuration**, add `http://localhost:3000/auth/callback` (and your production URL later) as a redirect URL.
 5. Copy your keys from **Project Settings → API**: `Project URL`, `anon public` key, and `service_role` key.
@@ -191,5 +192,3 @@ Visit `http://localhost:3000`. Sign up, upload a PDF/DOCX/TXT file, wait for it 
 ## License
 
 MIT — do whatever you'd like with this.
-#   D o c M i n d - A I  
- 

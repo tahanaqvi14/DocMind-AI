@@ -140,7 +140,7 @@ export default function Home() {
       <footer className="border-t border-ink-line/60 py-8 text-center text-sm text-ink-muted">
         DocMind AI — built as a portfolio project.{" "}
         <a
-          href="https://github.com"
+          href="https://github.com/tahanaqvi14/DocMind-AI"
           className="underline hover:text-ink-text"
           target="_blank"
           rel="noreferrer"
