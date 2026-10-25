@@ -8,40 +8,38 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const [{ count: docCount }, { count: questionCount }, { data: recentMessages }] =
-    await Promise.all([
-      supabase.from("documents").select("id", { count: "exact", head: true }).eq("owner_id", user.id),
-      supabase
-        .from("messages")
-        .select("id", { count: "exact", head: true })
-        .eq("owner_id", user.id)
-        .eq("role", "user"),
-      supabase
-        .from("messages")
-        .select("created_at")
-        .eq("owner_id", user.id)
-        .eq("role", "user")
-        .order("created_at", { ascending: false })
-        .limit(200),
-    ]);
+  // Eight days back so the browser can bucket the last seven of ITS days:
+  // the server runs in UTC and does not know the user's timezone.
+  const since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Bucket questions asked per day, last 7 days, for the usage chart
-  const days: { label: string; count: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const label = d.toLocaleDateString(undefined, { weekday: "short" });
-    const count =
-      recentMessages?.filter((m) => {
-        const md = new Date(m.created_at);
-        return md.toDateString() === d.toDateString();
-      }).length ?? 0;
-    days.push({ label, count });
+  const [docs, questions, recent] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", user.id)
+      .eq("status", "ready"),
+    supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", user.id)
+      .eq("role", "user"),
+    supabase
+      .from("messages")
+      .select("created_at")
+      .eq("owner_id", user.id)
+      .eq("role", "user")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1000),
+  ]);
+
+  if (docs.error || questions.error || recent.error) {
+    return NextResponse.json({ error: "Couldn't load usage." }, { status: 500 });
   }
 
   return NextResponse.json({
-    documentCount: docCount ?? 0,
-    questionCount: questionCount ?? 0,
-    dailyQuestions: days,
+    documentCount: docs.count ?? 0,
+    questionCount: questions.count ?? 0,
+    recentQuestionTimes: (recent.data ?? []).map((m) => m.created_at as string),
   });
 }

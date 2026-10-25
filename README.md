@@ -179,6 +179,7 @@ Visit `http://localhost:3000`. Sign up, upload a PDF/DOCX/TXT file, wait for it 
 
 ## Plan limits
 
+- **Uploads** — PDF, DOCX or TXT, up to 4 MB each (just under Vercel's 4.5 MB request limit). Failed uploads don't count toward the plan limit.
 - **Free** — 3 documents, unlimited questions.
 - **Pro** — unlimited documents, via Stripe test-mode subscription (`4242 4242 4242 4242`, any future expiry, any CVC).
 

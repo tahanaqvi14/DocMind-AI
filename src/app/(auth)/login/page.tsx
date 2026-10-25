@@ -1,10 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard } from "@/components/AuthCard";
+
+/** /auth/callback sends people here with ?error=auth_failed when a
+ *  confirmation link has expired or was already used. Without this they
+ *  just saw a login form and no idea why. */
+function LinkError() {
+  const error = useSearchParams().get("error");
+  if (error !== "auth_failed") return null;
+  return (
+    <p className="mb-4 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+      That sign-in link didn&apos;t work. It may have expired or already been used. Log in
+      below, or sign up again to get a new link.
+    </p>
+  );
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -31,15 +45,20 @@ export default function LoginPage() {
     router.refresh();
   }
 
-  async function handleGoogleLogin() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  }
+  // Re-enable together with the Google button below.
+  // async function handleGoogleLogin() {
+  //   await supabase.auth.signInWithOAuth({
+  //     provider: "google",
+  //     options: { redirectTo: `${window.location.origin}/auth/callback` },
+  //   });
+  // }
 
   return (
     <AuthCard title="Welcome back" subtitle="Log in to keep chatting with your documents.">
+      <Suspense fallback={null}>
+        <LinkError />
+      </Suspense>
+
       {/* <button
         onClick={handleGoogleLogin}
         className="w-full rounded-lg border border-ink-line bg-ink-soft py-3 text-sm font-medium transition-colors hover:border-teal"

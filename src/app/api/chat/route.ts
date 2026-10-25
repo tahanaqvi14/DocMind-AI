@@ -9,6 +9,7 @@ export const maxDuration = 60;
 
 const SIMILARITY_THRESHOLD = 0.55;
 const MATCH_COUNT = 5;
+const MAX_MESSAGE_CHARS = 4000;
 
 interface MatchRow {
   id: string;
@@ -31,38 +32,76 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { message, chatId, documentId } = await request.json();
-  if (!message || typeof message !== "string") {
+  let body: { message?: unknown; chatId?: unknown; documentId?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Malformed request" }, { status: 400 });
+  }
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const chatId = typeof body.chatId === "string" ? body.chatId : undefined;
+  const documentId = typeof body.documentId === "string" ? body.documentId : null;
+  if (!message) {
     return NextResponse.json({ error: "Missing message" }, { status: 400 });
+  }
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return NextResponse.json(
+      { error: `Please keep questions under ${MAX_MESSAGE_CHARS.toLocaleString()} characters.` },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
 
-  // Get or create the chat thread. The admin client bypasses RLS, so a
-  // client-supplied chatId must be checked against the caller explicitly —
-  // otherwise anyone could read (as model context) and write into another
-  // user's chat just by sending its id.
-  let activeChatId = chatId as string | undefined;
-  if (activeChatId) {
+  // The admin client bypasses RLS, so a client-supplied chatId must be
+  // checked against the caller explicitly — otherwise anyone could read (as
+  // model context) and write into another user's chat just by sending its id.
+  if (chatId) {
     const { data: ownChat } = await admin
       .from("chats")
       .select("id")
-      .eq("id", activeChatId)
+      .eq("id", chatId)
       .eq("owner_id", user.id)
       .maybeSingle();
     if (!ownChat) {
       return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     }
-  } else {
+  }
+
+  // Embed the question and retrieve grounded context BEFORE writing
+  // anything, so a Gemini or database failure leaves no empty chat and no
+  // unanswered question behind — just an error the chat UI can show.
+  let matches: unknown;
+  try {
+    const queryEmbedding = await embedText(message);
+    const { data, error: matchError } = await admin.rpc("match_document_chunks", {
+      query_embedding: queryEmbedding,
+      match_owner_id: user.id,
+      match_count: MATCH_COUNT,
+      match_document_id: documentId,
+    });
+    if (matchError) throw matchError;
+    matches = data;
+  } catch (err) {
+    console.error("Retrieval failed:", err);
+    return NextResponse.json(
+      { error: "Couldn't process your question right now. Please try again in a moment." },
+      { status: 502 }
+    );
+  }
+
+  // Get or create the chat thread.
+  let activeChatId = chatId;
+  if (!activeChatId) {
     const { data: newChat, error } = await admin
       .from("chats")
       .insert({ owner_id: user.id, title: message.slice(0, 60) })
       .select()
       .single();
     if (error || !newChat) {
-      return NextResponse.json({ error: "Failed to create chat" }, { status: 500 });
+      return NextResponse.json({ error: "Couldn't start a new chat. Please try again." }, { status: 500 });
     }
-    activeChatId = newChat.id;
+    activeChatId = newChat.id as string;
   }
 
   // Prior turns for conversational context: the 10 MOST RECENT (newest
@@ -82,30 +121,6 @@ export async function POST(request: Request) {
     role: "user",
     content: message,
   });
-
-  // Embed the question and retrieve grounded context. A Gemini failure
-  // (rate limit, bad key) must come back as JSON the chat UI can show,
-  // not as an unhandled exception.
-  let queryEmbedding: number[];
-  try {
-    queryEmbedding = await embedText(message);
-  } catch (err) {
-    console.error("Embedding failed:", err);
-    return NextResponse.json(
-      { error: "Couldn't process your question right now. Please try again in a moment." },
-      { status: 502 }
-    );
-  }
-  const { data: matches, error: matchError } = await admin.rpc("match_document_chunks", {
-    query_embedding: queryEmbedding,
-    match_owner_id: user.id,
-    match_count: MATCH_COUNT,
-    match_document_id: documentId ?? null,
-  });
-
-  if (matchError) {
-    return NextResponse.json({ error: matchError.message }, { status: 500 });
-  }
 
   const relevant = ((matches ?? []) as MatchRow[]).filter(
     (m) => m.similarity >= SIMILARITY_THRESHOLD

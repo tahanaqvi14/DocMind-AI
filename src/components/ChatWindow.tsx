@@ -246,7 +246,11 @@ export function ChatWindow({ documentId }: { documentId?: string }) {
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          onKeyDown={(e) => {
+            // isComposing: Enter that confirms an IME candidate must not send.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) handleSend();
+          }}
+          maxLength={4000}
           placeholder="Ask a question about your documents…"
           className="flex-1 rounded-xl border border-ink-line bg-ink px-4 py-3 text-sm outline-none transition-colors focus:border-teal"
           disabled={streaming}

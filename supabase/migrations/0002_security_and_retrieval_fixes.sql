@@ -16,6 +16,33 @@
 drop policy if exists "profiles: update own" on profiles;
 drop policy if exists "profiles: insert own" on profiles;
 
+-- 1b. Same idea for everything else: read your own rows, delete your own
+-- documents, and write nothing directly.
+--
+-- "crud own" let any user insert document rows (and their own embeddings)
+-- straight from the browser, skipping the server's plan check — unlimited
+-- documents on the Free plan — and rewrite messages that feed the usage
+-- dashboard. All real writes go through the server with the service-role
+-- key, which bypasses RLS, so the app loses nothing. Chunks are removed by
+-- ON DELETE CASCADE when their document is, which RLS does not block.
+drop policy if exists "documents: crud own" on documents;
+drop policy if exists "documents: read own" on documents;
+drop policy if exists "documents: delete own" on documents;
+create policy "documents: read own" on documents for select using (auth.uid() = owner_id);
+create policy "documents: delete own" on documents for delete using (auth.uid() = owner_id);
+
+drop policy if exists "chunks: crud own" on document_chunks;
+drop policy if exists "chunks: read own" on document_chunks;
+create policy "chunks: read own" on document_chunks for select using (auth.uid() = owner_id);
+
+drop policy if exists "chats: crud own" on chats;
+drop policy if exists "chats: read own" on chats;
+create policy "chats: read own" on chats for select using (auth.uid() = owner_id);
+
+drop policy if exists "messages: crud own" on messages;
+drop policy if exists "messages: read own" on messages;
+create policy "messages: read own" on messages for select using (auth.uid() = owner_id);
+
 -- 2. Exact (not approximate) similarity search, scoped to the user first.
 --
 -- The ivfflat index from 0001 was built on an empty table, so its lists are

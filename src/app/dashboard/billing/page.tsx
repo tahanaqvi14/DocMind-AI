@@ -15,10 +15,12 @@ export default async function BillingPage() {
   if (user) {
     const [{ data: profile }, { count }] = await Promise.all([
       supabase.from("profiles").select("plan").eq("id", user.id).single(),
+      // Same rule as the upload limit: failed uploads don't use a slot.
       supabase
         .from("documents")
         .select("id", { count: "exact", head: true })
-        .eq("owner_id", user.id),
+        .eq("owner_id", user.id)
+        .neq("status", "failed"),
     ]);
     if (profile?.plan === "pro") plan = "pro";
     documentCount = count ?? 0;

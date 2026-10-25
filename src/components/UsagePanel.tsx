@@ -10,23 +10,61 @@ interface Usage {
   dailyQuestions: { label: string; count: number }[];
 }
 
+/** Buckets questions into the last 7 days of the VIEWER's calendar. Done
+ *  here rather than on the server, which runs in UTC: there, a question
+ *  asked at 2am in Pakistan landed on the previous day. */
+function lastSevenDays(times: string[]): { label: string; count: number }[] {
+  const days: { label: string; count: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toDateString();
+    days.push({
+      label: d.toLocaleDateString(undefined, { weekday: "short" }),
+      count: times.filter((t) => new Date(t).toDateString() === key).length,
+    });
+  }
+  return days;
+}
+
 export function UsagePanel() {
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/usage")
-      .then((r) => r.json())
-      .then((data) => !cancelled && setUsage(data))
-      .catch(() => !cancelled && setUsage(null));
+      .then(async (r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setUsage({
+          documentCount: data.documentCount ?? 0,
+          questionCount: data.questionCount ?? 0,
+          dailyQuestions: lastSevenDays(data.recentQuestionTimes ?? []),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  if (failed) {
+    return (
+      <div className="rounded-2xl border border-ink-line bg-ink-soft/50 p-6 text-sm text-ink-muted shadow-sm">
+        Couldn&apos;t load your usage right now. Refresh the page to try again.
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-5 md:grid-cols-3">
-      <StatCard icon={FileText} label="Documents uploaded" value={usage?.documentCount} />
+      <StatCard icon={FileText} label="Documents ready" value={usage?.documentCount} />
       <StatCard icon={MessageSquareText} label="Questions asked" value={usage?.questionCount} />
 
       <div className="rounded-2xl border border-ink-line bg-ink-soft/50 p-6 shadow-sm">

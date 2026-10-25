@@ -56,6 +56,10 @@ export interface MessageRow {
   created_at: string;
 }
 
+/** Vercel rejects request bodies over 4.5 MB before the function even runs
+ *  (with a non-JSON 413), so uploads are capped just below that. */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
 export const PLAN_LIMITS: Record<Plan, { maxDocuments: number; label: string }> = {
   free: { maxDocuments: 3, label: "Free" },
   pro: { maxDocuments: Infinity, label: "Pro" },

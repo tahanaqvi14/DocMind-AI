@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Sparkles, ArrowUpRight, Loader2, PartyPopper } from "lucide-react";
 import { PLAN_LIMITS, type Plan } from "@/types";
 
@@ -25,7 +25,23 @@ export function BillingPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const justUpgraded = searchParams.get("upgraded") === "1";
+
+  // Stripe redirects back before its webhook has necessarily flipped the
+  // plan, so right after checkout this page can still say "Free". Re-fetch
+  // the server data for a little while until the upgrade lands.
+  const activating = justUpgraded && plan !== "pro";
+  useEffect(() => {
+    if (!activating) return;
+    let tries = 0;
+    const interval = setInterval(() => {
+      tries += 1;
+      router.refresh();
+      if (tries >= 15) clearInterval(interval);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [activating, router]);
 
   const limit = PLAN_LIMITS[plan].maxDocuments;
   const usagePct = plan === "pro" ? 0 : Math.min(100, (documentCount / limit) * 100);
@@ -60,10 +76,17 @@ export function BillingPanel({
 
   return (
     <div>
-      {justUpgraded && (
+      {justUpgraded && plan === "pro" && (
         <div className="mb-6 flex items-center gap-3 rounded-xl border border-teal/40 bg-teal/10 px-4 py-3 text-sm text-teal">
           <PartyPopper size={18} />
           You&apos;re on Pro now — unlimited documents unlocked.
+        </div>
+      )}
+      {activating && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-ink-line bg-ink-soft/50 px-4 py-3 text-sm text-ink-muted">
+          <Loader2 size={18} className="animate-spin text-highlight" />
+          Payment received — activating Pro. This usually takes a few seconds; if it doesn&apos;t
+          update, refresh the page in a minute.
         </div>
       )}
 

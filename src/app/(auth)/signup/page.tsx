@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard } from "@/components/AuthCard";
 
@@ -11,6 +12,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const router = useRouter();
   const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -18,15 +20,35 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
 
     if (error) {
-      setError(error.message);
+      setError(
+        /rate limit/i.test(error.message)
+          ? "Too many sign-ups in the last hour. Please try again in a little while."
+          : error.message
+      );
       setLoading(false);
+      return;
+    }
+
+    // Supabase reports an already-registered email as a SUCCESS whose user
+    // has no identities (so as not to reveal which emails exist). Without
+    // this check the user is told to check an inbox that will stay empty.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      setError("An account with this email already exists. Log in instead.");
+      setLoading(false);
+      return;
+    }
+
+    // With email confirmation turned off, sign-up signs the user straight in.
+    if (data.session) {
+      router.push("/dashboard");
+      router.refresh();
       return;
     }
 
@@ -34,12 +56,13 @@ export default function SignupPage() {
     setLoading(false);
   }
 
-  async function handleGoogleSignup() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  }
+  // Re-enable together with the Google button below.
+  // async function handleGoogleSignup() {
+  //   await supabase.auth.signInWithOAuth({
+  //     provider: "google",
+  //     options: { redirectTo: `${window.location.origin}/auth/callback` },
+  //   });
+  // }
 
   if (sent) {
     return (
